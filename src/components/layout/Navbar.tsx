@@ -54,6 +54,11 @@ export function Navbar({
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  const isAuthPage =
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/admin/login'
+
   const visibleLinks = NAV_LINKS.filter((link) => {
     if ('organizerOnly' in link && link.organizerOnly && !isOrganizer) return false
     if ('authOnly' in link && link.authOnly && !user) return false
@@ -114,7 +119,7 @@ export function Navbar({
 
           {/* Desktop CTA */}
           <div className="hidden items-center gap-3 md:flex">
-            {campuses && campuses.length > 0 && (
+            {campuses && campuses.length > 0 && !isAuthPage && (
               <CampusSelector currentCampus={currentCampus} campuses={campuses} />
             )}
             {user ? (
@@ -151,7 +156,7 @@ export function Navbar({
 
           {/* Mobile menu trigger */}
           <div className="flex items-center gap-2 md:hidden">
-            {campuses && campuses.length > 0 && (
+            {campuses && campuses.length > 0 && !isAuthPage && (
               <CampusSelector currentCampus={currentCampus} campuses={campuses} variant="compact" />
             )}
             {user && <NotificationBell />}
