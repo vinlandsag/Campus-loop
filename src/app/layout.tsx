@@ -68,6 +68,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html
       lang="en"
       className={cn("h-full", inter.variable, plusJakartaSans.variable, "font-sans", geist.variable)}
+      data-scroll-behavior="smooth"
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col antialiased">
