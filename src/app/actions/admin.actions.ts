@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getAdminUser, logAdminAction } from '@/lib/auth/admin'
 import { checkDurableRateLimit } from '@/lib/rate-limit/durable-limiter'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
+import { invalidateCampusCache, invalidateOrganizerCache } from '@/lib/cache/invalidation'
 import type {
   ActionResult,
   AdminAuditLogEntry,
@@ -39,53 +41,55 @@ async function adminRateLimit(
 // ─── Dashboard Overview ──────────────────────────────────────────────────────
 
 export async function adminGetDashboardOverview(): Promise<ActionResult<AdminDashboardOverview>> {
-  const supabase = await createClient()
-  const auth = await getAdminUser(supabase)
-  if (!auth.authorized) return { success: false, error: auth.error }
+  return measureDevPerf('dashboard:queries', async () => {
+    const supabase = await createClient()
+    const auth = await getAdminUser(supabase)
+    if (!auth.authorized) return { success: false, error: auth.error }
 
-  const [
-    { count: pendingOrganizers },
-    { count: pendingReports },
-    { count: flaggedEvents },
-    { count: totalCampuses },
-    { count: activeCampuses },
-    { count: totalEvents },
-    { count: recentAuditCount },
-  ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .eq('role', 'organizer')
-      .eq('is_verified', false)
-      .eq('is_suspended', false),
-    supabase
-      .from('moderation_reports')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending'),
-    supabase
-      .from('moderation_reports')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'investigating'),
-    supabase.from('campuses').select('*', { count: 'exact', head: true }),
-    supabase.from('campuses').select('*', { count: 'exact', head: true }).eq('is_active', true),
-    supabase.from('events').select('*', { count: 'exact', head: true }),
-    supabase
-      .from('admin_audit_log')
-      .select('*', { count: 'exact', head: true }),
-  ])
+    const [
+      { count: pendingOrganizers },
+      { count: pendingReports },
+      { count: flaggedEvents },
+      { count: totalCampuses },
+      { count: activeCampuses },
+      { count: totalEvents },
+      { count: recentAuditCount },
+    ] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'organizer')
+        .eq('is_verified', false)
+        .eq('is_suspended', false),
+      supabase
+        .from('moderation_reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending'),
+      supabase
+        .from('moderation_reports')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'investigating'),
+      supabase.from('campuses').select('*', { count: 'exact', head: true }),
+      supabase.from('campuses').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      supabase.from('events').select('*', { count: 'exact', head: true }),
+      supabase
+        .from('admin_audit_log')
+        .select('*', { count: 'exact', head: true }),
+    ])
 
-  return {
-    success: true,
-    data: {
-      pendingOrganizers: pendingOrganizers ?? 0,
-      pendingReports: pendingReports ?? 0,
-      flaggedEvents: flaggedEvents ?? 0,
-      totalCampuses: totalCampuses ?? 0,
-      activeCampuses: activeCampuses ?? 0,
-      totalEvents: totalEvents ?? 0,
-      recentAuditCount: recentAuditCount ?? 0,
-    },
-  }
+    return {
+      success: true,
+      data: {
+        pendingOrganizers: pendingOrganizers ?? 0,
+        pendingReports: pendingReports ?? 0,
+        flaggedEvents: flaggedEvents ?? 0,
+        totalCampuses: totalCampuses ?? 0,
+        activeCampuses: activeCampuses ?? 0,
+        totalEvents: totalEvents ?? 0,
+        recentAuditCount: recentAuditCount ?? 0,
+      },
+    }
+  })
 }
 
 // ─── Organizer Management ────────────────────────────────────────────────────
@@ -232,6 +236,7 @@ export async function adminApproveOrganizer(
     // Non-critical
   }
 
+  invalidateOrganizerCache(organizerId)
   revalidatePath('/admin/organizers')
   revalidatePath('/admin')
   return { success: true, data: { id: organizerId } }
@@ -286,6 +291,7 @@ export async function adminRejectOrganizer(
     // Non-critical
   }
 
+  invalidateOrganizerCache(organizerId)
   revalidatePath('/admin/organizers')
   revalidatePath('/admin')
   return { success: true, data: { id: organizerId } }
@@ -350,6 +356,7 @@ export async function adminSuspendOrganizer(
     // Non-critical
   }
 
+  invalidateOrganizerCache(organizerId)
   revalidatePath('/admin/organizers')
   revalidatePath('/admin')
   return { success: true, data: { id: organizerId } }
@@ -404,6 +411,7 @@ export async function adminUnsuspendOrganizer(
     // Non-critical
   }
 
+  invalidateOrganizerCache(organizerId)
   revalidatePath('/admin/organizers')
   revalidatePath('/admin')
   return { success: true, data: { id: organizerId } }
@@ -457,6 +465,7 @@ export async function adminRevokeOrganizer(
     // Non-critical
   }
 
+  invalidateOrganizerCache(organizerId)
   revalidatePath('/admin/organizers')
   revalidatePath('/admin')
   return { success: true, data: { id: organizerId } }
@@ -567,6 +576,7 @@ export async function adminCreateCampus(input: {
     metadata: { name: input.name, slug: input.slug, domains },
   })
 
+  invalidateCampusCache()
   revalidatePath('/admin/colleges')
   return { success: true, data: { id: data.id } }
 }
@@ -602,6 +612,7 @@ export async function adminUpdateCampus(
     metadata: { changes: input },
   })
 
+  invalidateCampusCache()
   revalidatePath('/admin/colleges')
   return { success: true, data: { id: campusId } }
 }
@@ -665,6 +676,7 @@ export async function adminAddDomain(
     metadata: { domain: cleanDomain },
   })
 
+  invalidateCampusCache()
   revalidatePath('/admin/colleges')
   return { success: true, data: { id: campusId } }
 }
@@ -704,6 +716,7 @@ export async function adminRemoveDomain(
     metadata: { domain },
   })
 
+  invalidateCampusCache()
   revalidatePath('/admin/colleges')
   return { success: true, data: { id: campusId } }
 }

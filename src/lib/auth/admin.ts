@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import type { Database } from '@/types/database.types'
 import type { AdminAuditAction } from '@/types'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 
 /**
  * Validates if the authenticated user is an authorized system administrator.
@@ -18,32 +19,34 @@ export async function isSystemAdmin(
   supabase: SupabaseClient<Database>,
   user: User | null | undefined
 ): Promise<boolean> {
-  if (!user || !user.id) {
-    return false
-  }
+  return measureDevPerf('admin:lookup', async () => {
+    if (!user || !user.id) {
+      return false
+    }
 
-  // 1. Check server-controlled app_metadata (immutable by normal users)
-  const appMeta = user.app_metadata as Record<string, unknown> | undefined
-  if (appMeta?.['role'] === 'admin' || appMeta?.['is_admin'] === true) {
-    return true
-  }
-
-  // 2. Query dedicated system_admins table
-  try {
-    const { data, error } = await supabase
-      .from('system_admins')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (!error && data) {
+    // 1. Check server-controlled app_metadata (immutable by normal users)
+    const appMeta = user.app_metadata as Record<string, unknown> | undefined
+    if (appMeta?.['role'] === 'admin' || appMeta?.['is_admin'] === true) {
       return true
     }
-  } catch (err) {
-    console.error('Error checking system_admins status:', err)
-  }
 
-  return false
+    // 2. Query dedicated system_admins table
+    try {
+      const { data, error } = await supabase
+        .from('system_admins')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (!error && data) {
+        return true
+      }
+    } catch (err) {
+      console.error('Error checking system_admins status:', err)
+    }
+
+    return false
+  })
 }
 
 /**

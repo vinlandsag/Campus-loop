@@ -2,29 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getCachedPublicVenues } from '@/lib/cache/public-cache'
+import { invalidateVenueCache } from '@/lib/cache/invalidation'
 import type { CampusVenue } from '@/types'
 
 export async function getCampusVenues(campusId?: string): Promise<{ success: boolean; data?: CampusVenue[]; error?: string }> {
   try {
-    const supabase = await createClient()
-    let query = supabase
-      .from('campus_venues')
-      .select('*')
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-
-    if (campusId) {
-      query = query.eq('campus_id', campusId)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error('Error fetching campus venues:', error)
-      return { success: false, error: error.message }
-    }
-
-    return { success: true, data: data as CampusVenue[] }
+    const venues = await getCachedPublicVenues(campusId)
+    return { success: true, data: venues }
   } catch (err) {
     console.error('getCampusVenues failure:', err)
     return { success: false, error: 'Failed to retrieve venues' }
@@ -73,6 +58,7 @@ export async function createCampusVenue(input: {
       return { success: false, error: error.message }
     }
 
+    invalidateVenueCache(input.campus_id || undefined)
     revalidatePath('/dashboard/events')
     return { success: true, data: data as CampusVenue }
   } catch (err) {

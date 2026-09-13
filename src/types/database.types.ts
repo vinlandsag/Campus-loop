@@ -69,6 +69,54 @@ export type Database = {
         }
         Relationships: []
       }
+      campus_venues: {
+        Row: {
+          id: string
+          campus_id: string | null
+          name: string
+          building: string | null
+          floor: string | null
+          room: string | null
+          latitude: number | null
+          longitude: number | null
+          accessibility_details: string | null
+          directions_url: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          campus_id?: string | null
+          name: string
+          building?: string | null
+          floor?: string | null
+          room?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accessibility_details?: string | null
+          directions_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          campus_id?: string | null
+          name?: string
+          building?: string | null
+          floor?: string | null
+          room?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          accessibility_details?: string | null
+          directions_url?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       event_series: {
         Row: {
           id: string

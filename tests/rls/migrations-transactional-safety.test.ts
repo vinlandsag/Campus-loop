@@ -5,11 +5,11 @@ import path from 'node:path'
 describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Authorization', () => {
   const migrationsDir = path.resolve(process.cwd(), 'supabase/migrations')
 
-  test('all 29 chronological migrations exist on disk with valid naming convention', () => {
+  test('all 30 chronological migrations exist on disk with valid naming convention', () => {
     expect(fs.existsSync(migrationsDir)).toBe(true)
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
 
-    expect(files.length).toBe(29)
+    expect(files.length).toBe(30)
 
     // Expected sequence
     const expectedPrefixes = [
@@ -42,6 +42,7 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
       '20260913000000_phase17_admin_control_panel',
       '20260913010000_phase17_admin_profile_verification_trigger',
       '20260913020000_phase17_campus_domain_verification_trigger',
+      '20260913200000_fix_team_registration_invite_code_gen',
     ]
 
     expectedPrefixes.forEach((prefix, idx) => {

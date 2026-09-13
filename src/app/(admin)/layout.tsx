@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isSystemAdmin } from '@/lib/auth/admin'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import { APP_NAME } from '@/lib/constants'
 import { AdminShell } from '@/components/admin/AdminShell'
 
@@ -36,11 +37,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     redirect('/')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .maybeSingle()
+  const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+    supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .maybeSingle()
+  )
 
   const fullName = profile?.full_name || user.email || 'Admin'
   const initials = fullName

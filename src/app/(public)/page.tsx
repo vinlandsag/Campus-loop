@@ -6,6 +6,7 @@ import { SectionContainer } from '@/components/shared/SectionContainer'
 import { EventGrid } from '@/components/events/EventGrid'
 import { EventCard } from '@/components/events/EventCard'
 import { createClient } from '@/lib/supabase/server'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import type { Database } from '@/types/database.types'
 
 type EventRow = Database['public']['Tables']['events']['Row'] & {
@@ -48,18 +49,22 @@ export default async function HomePage() {
   let userCampus: { id: string; name: string; slug: string } | null = null
   if (user) {
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('campus_id')
-        .eq('id', user.id)
-        .maybeSingle()
+      const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+        supabase
+          .from('profiles')
+          .select('campus_id')
+          .eq('id', user.id)
+          .maybeSingle()
+      )
 
       if (profile?.campus_id) {
-        const { data: cData } = await supabase
-          .from('campuses')
-          .select('id, name, slug')
-          .eq('id', profile.campus_id)
-          .maybeSingle()
+        const { data: cData } = await measureDevPerf('campus:lookup', () =>
+          supabase
+            .from('campuses')
+            .select('id, name, slug')
+            .eq('id', profile.campus_id)
+            .maybeSingle()
+        )
         if (cData) {
           userCampus = cData
         }
@@ -85,21 +90,23 @@ export default async function HomePage() {
     eventsQuery = eventsQuery.eq('campus_id', userCampus.id)
   }
 
-  let { data: events, error } = await eventsQuery
+  let { data: events, error } = await measureDevPerf('event:listing', () => eventsQuery)
 
   // Fallback if campus_id is not yet in remote database
   if (error && userCampus?.id && (error.message?.includes('campus_id') || error.code === 'PGRST200')) {
-    const fallbackRes = await supabase
-      .from('events')
-      .select(`
-        *,
-        registrations(count)
-      `)
-      .eq('status', 'published')
-      .gte('event_date', new Date().toISOString().split('T')[0])
-      .order('event_date', { ascending: true })
-      .order('start_time', { ascending: true })
-      .limit(4)
+    const fallbackRes = await measureDevPerf('event:listing', () =>
+      supabase
+        .from('events')
+        .select(`
+          *,
+          registrations(count)
+        `)
+        .eq('status', 'published')
+        .gte('event_date', new Date().toISOString().split('T')[0])
+        .order('event_date', { ascending: true })
+        .order('start_time', { ascending: true })
+        .limit(4)
+    )
     events = fallbackRes.data
     error = fallbackRes.error
   }

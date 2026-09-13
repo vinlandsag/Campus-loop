@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { isEventPast } from '@/lib/utils/date'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import type { EventMetricsData } from '@/types'
 
 /**
@@ -107,84 +108,86 @@ export async function getOrganizerOverviewMetrics(): Promise<{
   totalWaitlisted: number
   totalWaitlistConversions: number
 }> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  return measureDevPerf('dashboard:queries', async () => {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) {
-    return {
-      totalEvents: 0,
-      totalRegistrations: 0,
-      totalCheckedIn: 0,
-      overallAttendanceRate: 0,
-      totalWaitlisted: 0,
-      totalWaitlistConversions: 0,
+    if (!user) {
+      return {
+        totalEvents: 0,
+        totalRegistrations: 0,
+        totalCheckedIn: 0,
+        overallAttendanceRate: 0,
+        totalWaitlisted: 0,
+        totalWaitlistConversions: 0,
+      }
     }
-  }
 
-  // 1. Fetch events where user is organizer or team member
-  const { data: ownedEvents } = await supabase
-    .from('events')
-    .select('id')
-    .eq('organizer_id', user.id)
+    // 1. Fetch events where user is organizer or team member
+    const { data: ownedEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('organizer_id', user.id)
 
-  const { data: teamEvents } = await supabase
-    .from('event_team_members')
-    .select('event_id')
-    .eq('user_id', user.id)
+    const { data: teamEvents } = await supabase
+      .from('event_team_members')
+      .select('event_id')
+      .eq('user_id', user.id)
 
-  const eventIds = Array.from(
-    new Set([
-      ...(ownedEvents || []).map((e) => e.id),
-      ...(teamEvents || []).map((t) => t.event_id),
-    ])
-  )
+    const eventIds = Array.from(
+      new Set([
+        ...(ownedEvents || []).map((e) => e.id),
+        ...(teamEvents || []).map((t) => t.event_id),
+      ])
+    )
 
-  if (eventIds.length === 0) {
-    return {
-      totalEvents: 0,
-      totalRegistrations: 0,
-      totalCheckedIn: 0,
-      overallAttendanceRate: 0,
-      totalWaitlisted: 0,
-      totalWaitlistConversions: 0,
+    if (eventIds.length === 0) {
+      return {
+        totalEvents: 0,
+        totalRegistrations: 0,
+        totalCheckedIn: 0,
+        overallAttendanceRate: 0,
+        totalWaitlisted: 0,
+        totalWaitlistConversions: 0,
+      }
     }
-  }
 
-  // 2. Fetch registrations for these events
-  const { data: regs } = await supabase
-    .from('registrations')
-    .select('status, checked_in_at')
-    .in('event_id', eventIds)
+    // 2. Fetch registrations for these events
+    const { data: regs } = await supabase
+      .from('registrations')
+      .select('status, checked_in_at')
+      .in('event_id', eventIds)
 
-  const registrations = regs || []
-  const totalRegistrations = registrations.filter(
-    (r) => r.status === 'registered' || r.status === 'checked_in'
-  ).length
+    const registrations = regs || []
+    const totalRegistrations = registrations.filter(
+      (r) => r.status === 'registered' || r.status === 'checked_in'
+    ).length
 
-  const totalCheckedIn = registrations.filter(
-    (r) => r.status === 'checked_in' || Boolean(r.checked_in_at)
-  ).length
+    const totalCheckedIn = registrations.filter(
+      (r) => r.status === 'checked_in' || Boolean(r.checked_in_at)
+    ).length
 
-  const totalWaitlisted = registrations.filter((r) => r.status === 'waitlisted').length
+    const totalWaitlisted = registrations.filter((r) => r.status === 'waitlisted').length
 
-  const overallAttendanceRate =
-    totalRegistrations > 0 ? Math.round((totalCheckedIn / totalRegistrations) * 100) : 0
+    const overallAttendanceRate =
+      totalRegistrations > 0 ? Math.round((totalCheckedIn / totalRegistrations) * 100) : 0
 
-  // 3. Conversions count
-  const { count: conversions } = await supabase
-    .from('notifications')
-    .select('*', { count: 'exact', head: true })
-    .in('event_id', eventIds)
-    .eq('type', 'waitlist_promoted')
+    // 3. Conversions count
+    const { count: conversions } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .in('event_id', eventIds)
+      .eq('type', 'waitlist_promoted')
 
-  return {
-    totalEvents: eventIds.length,
-    totalRegistrations,
-    totalCheckedIn,
-    overallAttendanceRate,
-    totalWaitlisted,
-    totalWaitlistConversions: conversions || 0,
-  }
+    return {
+      totalEvents: eventIds.length,
+      totalRegistrations,
+      totalCheckedIn,
+      overallAttendanceRate,
+      totalWaitlisted,
+      totalWaitlistConversions: conversions || 0,
+    }
+  })
 }

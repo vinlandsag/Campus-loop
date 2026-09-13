@@ -3,22 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isSystemAdmin } from '@/lib/auth/admin'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
+import { getCachedActiveCampuses } from '@/lib/cache/public-cache'
 import type { Campus, CampusVerificationStatus } from '@/types'
 
 export async function getActiveCampuses(): Promise<Campus[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('campuses')
-    .select('*')
-    .eq('is_active', true)
-    .order('name', { ascending: true })
-
-  if (error || !data) {
-    console.error('Error fetching campuses:', error)
-    return []
-  }
-
-  return data as unknown as Campus[]
+  return measureDevPerf('campus:lookup', async () => {
+    return getCachedActiveCampuses()
+  })
 }
 
 export interface UserCampusDetails {
@@ -30,53 +22,55 @@ export interface UserCampusDetails {
 }
 
 export async function getUserCampusDetails(): Promise<UserCampusDetails | null> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  return measureDevPerf('campus:lookup', async () => {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (!user) return null
+    if (!user) return null
 
-  try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('campus_id, campus_verification_status, campus_exception_reason, campus_verified_at, pending_campus_id')
-      .eq('id', user.id)
-      .maybeSingle()
-
-    if (!profile) return null
-
-    let campus: Campus | null = null
-    if (profile.campus_id) {
-      const { data: cData } = await supabase
-        .from('campuses')
-        .select('*')
-        .eq('id', profile.campus_id)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('campus_id, campus_verification_status, campus_exception_reason, campus_verified_at, pending_campus_id')
+        .eq('id', user.id)
         .maybeSingle()
-      campus = (cData as unknown as Campus) || null
-    }
 
-    let pendingCampus: Campus | null = null
-    if (profile.pending_campus_id) {
-      const { data: pData } = await supabase
-        .from('campuses')
-        .select('*')
-        .eq('id', profile.pending_campus_id)
-        .maybeSingle()
-      pendingCampus = (pData as unknown as Campus) || null
-    }
+      if (!profile) return null
 
-    return {
-      campus,
-      status: (profile.campus_verification_status as CampusVerificationStatus) || 'unverified',
-      pendingCampus,
-      exceptionReason: profile.campus_exception_reason || null,
-      verifiedAt: profile.campus_verified_at || null,
+      let campus: Campus | null = null
+      if (profile.campus_id) {
+        const { data: cData } = await supabase
+          .from('campuses')
+          .select('*')
+          .eq('id', profile.campus_id)
+          .maybeSingle()
+        campus = (cData as unknown as Campus) || null
+      }
+
+      let pendingCampus: Campus | null = null
+      if (profile.pending_campus_id) {
+        const { data: pData } = await supabase
+          .from('campuses')
+          .select('*')
+          .eq('id', profile.pending_campus_id)
+          .maybeSingle()
+        pendingCampus = (pData as unknown as Campus) || null
+      }
+
+      return {
+        campus,
+        status: (profile.campus_verification_status as CampusVerificationStatus) || 'unverified',
+        pendingCampus,
+        exceptionReason: profile.campus_exception_reason || null,
+        verifiedAt: profile.campus_verified_at || null,
+      }
+    } catch (err) {
+      console.error('Error fetching user campus details:', err)
+      return null
     }
-  } catch (err) {
-    console.error('Error fetching user campus details:', err)
-    return null
-  }
+  })
 }
 
 export async function getUserCampus(): Promise<Campus | null> {

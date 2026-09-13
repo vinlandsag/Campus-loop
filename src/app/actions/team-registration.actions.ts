@@ -26,6 +26,9 @@ export async function createRegistrationTeam(
   })
 
   if (error) {
+    if (error.message.includes('gen_random_bytes') || error.code === '42883') {
+      return await createRegistrationTeamFallback(supabase, eventId, teamName, eventSlug)
+    }
     return { success: false, error: error.message }
   }
 
@@ -324,3 +327,155 @@ export async function getUserTeamForEvent(eventId: string): Promise<{
 
   return { success: true, team: resultTeam }
 }
+
+async function createRegistrationTeamFallback(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  teamName: string,
+  eventSlug?: string
+): Promise<{
+  success: boolean
+  teamId?: string
+  inviteCode?: string
+  teamName?: string
+  status?: string
+  minTeamSize?: number
+  maxTeamSize?: number
+  error?: string
+}> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { success: false, error: 'You must be logged in to create a team' }
+  }
+
+  const cleanedName = teamName.trim()
+  if (cleanedName.length < 2 || cleanedName.length > 60) {
+    return { success: false, error: 'Team name must be between 2 and 60 characters' }
+  }
+
+  // Fetch event
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select('id, title, slug, status, capacity, active_registrations_count, registration_mode, min_team_size, max_team_size, max_teams, registration_deadline')
+    .eq('id', eventId)
+    .single()
+
+  if (eventError || !event) {
+    return { success: false, error: 'Event not found' }
+  }
+
+  if (event.status === 'cancelled') {
+    return { success: false, error: 'This event has been cancelled' }
+  }
+
+  if (event.registration_mode === 'individual') {
+    return { success: false, error: 'This event does not allow team registration' }
+  }
+
+  if (event.registration_deadline && new Date() > new Date(event.registration_deadline)) {
+    return { success: false, error: 'Registration deadline has passed' }
+  }
+
+  // Check if user is already in a team for this event
+  const { data: existingMember } = await supabase
+    .from('event_registration_team_members')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (existingMember) {
+    return { success: false, error: 'You are already in a team for this event' }
+  }
+
+  const minTeamSize = event.min_team_size ?? 2
+  const maxTeamSize = event.max_team_size ?? 4
+
+  // Check team limit if max_teams is specified
+  if (event.max_teams) {
+    const { count: teamCount } = await supabase
+      .from('event_registration_teams')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', eventId)
+      .neq('status', 'disbanded')
+
+    if ((teamCount ?? 0) >= event.max_teams) {
+      return { success: false, error: 'Maximum number of teams reached for this event' }
+    }
+  }
+
+  // Check capacity
+  if (event.capacity !== null && event.capacity !== undefined) {
+    const activeRegs = event.active_registrations_count ?? 0
+    if (activeRegs + minTeamSize > event.capacity) {
+      return { success: false, error: 'Not enough capacity remaining to form a new team' }
+    }
+  }
+
+  // Check duplicate team name in event
+  const { data: duplicateTeam } = await supabase
+    .from('event_registration_teams')
+    .select('id')
+    .eq('event_id', eventId)
+    .ilike('name', cleanedName)
+    .neq('status', 'disbanded')
+    .maybeSingle()
+
+  if (duplicateTeam) {
+    return { success: false, error: 'A team with this name already exists in this event' }
+  }
+
+  const inviteCode = crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()
+  const initialStatus = minTeamSize <= 1 ? 'complete' : 'forming'
+  const memberStatus = minTeamSize <= 1 ? 'confirmed' : 'pending'
+
+  // Insert team
+  const { data: team, error: teamError } = await supabase
+    .from('event_registration_teams')
+    .insert({
+      event_id: eventId,
+      name: cleanedName,
+      leader_id: user.id,
+      invite_code: inviteCode,
+      status: initialStatus,
+    })
+    .select('id')
+    .single()
+
+  if (teamError || !team) {
+    return { success: false, error: teamError?.message || 'Failed to create team' }
+  }
+
+  // Insert leader as member
+  const { error: memberError } = await supabase
+    .from('event_registration_team_members')
+    .insert({
+      team_id: team.id,
+      user_id: user.id,
+      event_id: eventId,
+      role: 'leader',
+      status: memberStatus,
+    })
+
+  if (memberError) {
+    return { success: false, error: memberError.message }
+  }
+
+  if (eventSlug || event.slug) {
+    revalidatePath(`/events/${eventSlug || event.slug}`)
+  }
+
+  return {
+    success: true,
+    teamId: team.id,
+    inviteCode,
+    teamName: cleanedName,
+    status: initialStatus,
+    minTeamSize,
+    maxTeamSize,
+  }
+}
+

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/server'
+import { getCachedPublicOrganizer } from '@/lib/cache/public-cache'
 import { SectionContainer } from '@/components/shared/SectionContainer'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -41,18 +42,13 @@ export async function generateMetadata({
   params,
 }: OrganizerProfilePageProps): Promise<Metadata> {
   const { id } = await params
-  const supabase = await createClient()
 
   let fullName = ''
   let bio: string | null = null
 
   try {
-    const { data: org, error } = await supabase
-      .from('organizer_profiles')
-      .select('full_name, bio')
-      .eq('id', id)
-      .maybeSingle()
-    if (!error && org) {
+    const org = await getCachedPublicOrganizer(id)
+    if (org) {
       fullName = org.full_name || ''
       bio = org.bio || null
     }
@@ -75,16 +71,12 @@ export default async function OrganizerProfilePage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 1. Fetch Verified Organizer Profile from organizer_profiles view only
+  // 1. Fetch Verified Organizer Profile from public cache
   let organizer: OrganizerProfile | null = null
 
   try {
-    const { data: orgData, error: orgError } = await supabase
-      .from('organizer_profiles')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle()
-    if (!orgError && orgData && orgData.is_verified) {
+    const orgData = await getCachedPublicOrganizer(id)
+    if (orgData && orgData.is_verified) {
       organizer = {
         id: orgData.id || id,
         full_name: orgData.full_name || 'Campus Organizer',

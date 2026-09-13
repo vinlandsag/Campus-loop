@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 
 /**
  * Server-side Supabase client.
@@ -9,7 +10,7 @@ import { cookies } from 'next/headers'
 export async function createClient() {
   const cookieStore = await cookies()
 
-  return createServerClient(
+  const client = createServerClient(
     process.env['NEXT_PUBLIC_SUPABASE_URL']!,
     process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!,
     {
@@ -32,4 +33,13 @@ export async function createClient() {
       },
     }
   )
+
+  if (process.env.NODE_ENV === 'development') {
+    const originalGetUser = client.auth.getUser.bind(client.auth)
+    client.auth.getUser = ((jwt?: string) => {
+      return measureDevPerf('auth:lookup', () => originalGetUser(jwt))
+    }) as typeof client.auth.getUser
+  }
+
+  return client
 }

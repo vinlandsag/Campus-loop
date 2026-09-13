@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { format, parseISO } from 'date-fns'
 import { CalendarPlus, Eye, Pencil, Users, QrCode, ShieldCheck, HelpCircle, Megaphone, BarChart2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import { EventStatusBadge } from '@/components/events/EventStatusBadge'
 import { DeleteEventButton } from '@/components/dashboard/DeleteEventButton'
 import { CancelEventDialog } from '@/components/dashboard/CancelEventDialog'
@@ -34,11 +35,13 @@ export default async function DashboardEventsPage() {
   if (!user) redirect('/login')
 
   // Fetch caller's profile to verify organizer status
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, is_verified, campus_verification_status')
-    .eq('id', user.id)
-    .maybeSingle()
+  const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+    supabase
+      .from('profiles')
+      .select('role, is_verified, campus_verification_status')
+      .eq('id', user.id)
+      .maybeSingle()
+  )
 
   const isVerifiedOrganizer =
     profile?.role === 'organizer' &&
@@ -72,7 +75,7 @@ export default async function DashboardEventsPage() {
     eventsQuery = eventsQuery.eq('organizer_id', user.id)
   }
 
-  const { data: events, error } = await eventsQuery
+  const { data: events, error } = await measureDevPerf('dashboard:queries', () => eventsQuery)
 
   if (error) {
     console.error('Events list error:', error.message)

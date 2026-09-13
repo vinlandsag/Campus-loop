@@ -23,6 +23,8 @@ import {
 import { isEventPast } from '@/lib/utils/date'
 
 import { createClient } from '@/lib/supabase/server'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
+import { getCachedPublicOrganizer } from '@/lib/cache/public-cache'
 import { SectionContainer } from '@/components/shared/SectionContainer'
 import { EventStatusBadge } from '@/components/events/EventStatusBadge'
 import { RegistrationButton, type RegistrationState } from '@/components/events/RegistrationButton'
@@ -56,14 +58,16 @@ export default async function EventDetailPage({ params, searchParams }: PageProp
   const { data: { user } } = await supabase.auth.getUser()
 
   // 1. Fetch Event with relations
-  const { data: event } = await supabase
-    .from('events')
-    .select(`
-      *,
-      registrations(count)
-    `, { count: 'exact' })
-    .eq('slug', slug)
-    .single()
+  const { data: event } = await measureDevPerf('event:detail', () =>
+    supabase
+      .from('events')
+      .select(`
+        *,
+        registrations(count)
+      `, { count: 'exact' })
+      .eq('slug', slug)
+      .single()
+  )
 
   if (!event) {
     notFound()
@@ -74,11 +78,13 @@ export default async function EventDetailPage({ params, searchParams }: PageProp
   const campusId = (event as unknown as { campus_id?: string | null }).campus_id
   if (campusId) {
     try {
-      const { data: campusData } = await supabase
-        .from('campuses')
-        .select('name, slug')
-        .eq('id', campusId)
-        .maybeSingle()
+      const { data: campusData } = await measureDevPerf('campus:lookup', () =>
+        supabase
+          .from('campuses')
+          .select('name, slug')
+          .eq('id', campusId)
+          .maybeSingle()
+      )
       campus = campusData
     } catch {}
   }
@@ -87,23 +93,23 @@ export default async function EventDetailPage({ params, searchParams }: PageProp
   let organizer: { full_name: string; avatar_url: string | null; is_verified?: boolean } | null = null
   if (event.organizer_id) {
     try {
-      const { data: orgData, error: orgErr } = await supabase
-        .from('organizer_profiles')
-        .select('full_name, avatar_url, is_verified')
-        .eq('id', event.organizer_id)
-        .maybeSingle()
-      if (!orgErr && orgData) {
+      const orgData = await measureDevPerf('profile:role_lookup', () =>
+        getCachedPublicOrganizer(event.organizer_id!)
+      )
+      if (orgData) {
         organizer = orgData
       }
     } catch {}
 
     if (!organizer) {
       try {
-        const { data: pData } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', event.organizer_id)
-          .maybeSingle()
+        const { data: pData } = await measureDevPerf('profile:role_lookup', () =>
+          supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', event.organizer_id)
+            .maybeSingle()
+        )
         if (pData) {
           organizer = {
             full_name: pData.full_name || 'Campus Organizer',

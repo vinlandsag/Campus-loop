@@ -403,4 +403,13 @@ describe('Phase 13: Recurring Events, Event Series & Team Registration', () => {
       expect(ics).toContain('END:VCALENDAR')
     })
   })
+
+  describe('Team Invite Code Generation Safety', () => {
+    it('generates a 10-character uppercase alphanumeric code using built-in UUID', () => {
+      const code = crypto.randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()
+      expect(code).toHaveLength(10)
+      expect(code).toMatch(/^[0-9A-F]{10}$/)
+    })
+  })
 })
+

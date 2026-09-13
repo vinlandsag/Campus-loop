@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { invalidateOrganizerCache } from '@/lib/cache/invalidation'
 
 export async function updateProfile(formData: FormData) {
   const supabase = await createClient()
@@ -38,6 +39,7 @@ export async function updateProfile(formData: FormData) {
     return { error: 'Failed to update auth metadata' }
   }
 
+  invalidateOrganizerCache(user.id)
   revalidatePath('/settings')
   revalidatePath('/', 'layout')
   

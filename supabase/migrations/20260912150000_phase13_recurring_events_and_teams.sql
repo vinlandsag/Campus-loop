@@ -228,7 +228,7 @@ BEGIN
   END IF;
 
   -- Generate unguessable invite code (10 alphanumeric characters)
-  v_invite_code := upper(encode(gen_random_bytes(5), 'hex'));
+  v_invite_code := upper(substring(replace(gen_random_uuid()::text, '-', ''), 1, 10));
 
   -- If min_team_size is 1, team is immediately complete
   IF v_min_size <= 1 THEN

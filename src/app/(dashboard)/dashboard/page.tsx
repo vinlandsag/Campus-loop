@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import { isEventPast } from '@/lib/utils/date'
 import { getOrganizerOverviewMetrics } from '@/app/actions/analytics.actions'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import type { Database } from '@/types/database.types'
 
 type DashboardEvent = Database['public']['Tables']['events']['Row'] & {
@@ -22,11 +23,13 @@ export default async function DashboardOverviewPage() {
   if (!user) redirect('/login')
 
   // Fetch caller profile for verification status
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, is_verified, campus_id, campus_verification_status, campus_exception_reason')
-    .eq('id', user.id)
-    .maybeSingle()
+  const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+    supabase
+      .from('profiles')
+      .select('role, is_verified, campus_id, campus_verification_status, campus_exception_reason')
+      .eq('id', user.id)
+      .maybeSingle()
+  )
 
   // Fetch assigned team events IDs
   const { data: teamMemberships } = await supabase
@@ -48,10 +51,12 @@ export default async function DashboardOverviewPage() {
     eventsQuery = eventsQuery.eq('organizer_id', user.id)
   }
 
-  const [eventsResult, overviewMetrics] = await Promise.all([
-    eventsQuery,
-    getOrganizerOverviewMetrics(),
-  ])
+  const [eventsResult, overviewMetrics] = await measureDevPerf('dashboard:queries', () =>
+    Promise.all([
+      eventsQuery,
+      getOrganizerOverviewMetrics(),
+    ])
+  )
 
   const events = eventsResult.data
   const error = eventsResult.error

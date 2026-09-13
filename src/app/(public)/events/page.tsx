@@ -10,6 +10,7 @@ import { EventFilters } from '@/components/events/EventFilters'
 import { EventGrid, EventGridSkeleton } from '@/components/events/EventGrid'
 import { EventCard } from '@/components/events/EventCard'
 import { createClient } from '@/lib/supabase/server'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import { getBatchEventsFriendAttendance } from '@/lib/social/attendance'
 import { explainRecommendation } from '@/lib/recommendations/ranking'
 import type { Database } from '@/types/database.types'
@@ -82,11 +83,13 @@ async function EventResults({ searchParams }: { searchParams: EventsPageProps['s
   let userCollege: string | null = null
 
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('campus_id, department, college')
-      .eq('id', user.id)
-      .maybeSingle()
+    const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+      supabase
+        .from('profiles')
+        .select('campus_id, department, college')
+        .eq('id', user.id)
+        .maybeSingle()
+    )
     if (profile) {
       userCampusId = profile.campus_id
       userDepartment = profile.department
@@ -109,11 +112,13 @@ async function EventResults({ searchParams }: { searchParams: EventsPageProps['s
     // Intentionally cross-campus
   } else if (campusParam) {
     try {
-      const { data: campusRow } = await supabase
-        .from('campuses')
-        .select('id')
-        .eq('slug', campusParam)
-        .maybeSingle()
+      const { data: campusRow } = await measureDevPerf('campus:lookup', () =>
+        supabase
+          .from('campuses')
+          .select('id')
+          .eq('slug', campusParam)
+          .maybeSingle()
+      )
       if (campusRow) {
         query = query.eq('campus_id', campusRow.id)
         appliedCampusFilter = true
@@ -205,7 +210,7 @@ async function EventResults({ searchParams }: { searchParams: EventsPageProps['s
   // Pagination
   query = query.range(offset, offset + pageSize - 1)
 
-  let { data: events, error, count } = await query
+  let { data: events, error, count } = await measureDevPerf('event:listing', () => query)
 
   // Fallback if campus_id is not yet migrated on the remote database
   if (error && appliedCampusFilter && (error.message?.includes('campus_id') || error.code === 'PGRST200' || error.details?.includes('campus_id'))) {
@@ -225,7 +230,7 @@ async function EventResults({ searchParams }: { searchParams: EventsPageProps['s
 
     fallbackQuery = fallbackQuery.order('event_date', { ascending: true }).order('start_time', { ascending: true })
     fallbackQuery = fallbackQuery.range(offset, offset + pageSize - 1)
-    const fallbackRes = await fallbackQuery
+    const fallbackRes = await measureDevPerf('event:listing', () => fallbackQuery)
     events = fallbackRes.data
     error = fallbackRes.error
     count = fallbackRes.count

@@ -5,6 +5,9 @@ import { CampusOnboardingModal } from '@/components/campus/CampusOnboardingModal
 import { APP_NAME } from '@/lib/constants'
 import { createClient } from '@/lib/supabase/server'
 import { isSystemAdmin } from '@/lib/auth/admin'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
+import { getCachedActiveCampuses } from '@/lib/cache/public-cache'
+import type { User } from '@supabase/supabase-js'
 import type { Campus } from '@/types'
 
 export const metadata: Metadata = {
@@ -23,7 +26,7 @@ interface AppLayoutProps {
  * This layout adds the Navbar and Footer and marks main with id="main-content".
  */
 export default async function AppLayout({ children }: AppLayoutProps) {
-  let user = null
+  let user: User | null = null
   let isOrganizer = false
   let isAdmin = false
   let currentCampus: Campus | null = null
@@ -34,25 +37,22 @@ export default async function AppLayout({ children }: AppLayoutProps) {
     const { data } = await supabase.auth.getUser()
     user = data.user
 
-    const { data: campusData } = await supabase
-      .from('campuses')
-      .select('*')
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-
-    campuses = (campusData || []) as unknown as Campus[]
+    campuses = await measureDevPerf('campus:lookup', () => getCachedActiveCampuses())
 
     if (user) {
+      const currentUser = user
       try {
-        isAdmin = await isSystemAdmin(supabase, user)
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role, full_name, campus_id')
-          .eq('id', user.id)
-          .maybeSingle()
+        isAdmin = await isSystemAdmin(supabase, currentUser)
+        const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+          supabase
+            .from('profiles')
+            .select('role, full_name, campus_id')
+            .eq('id', currentUser.id)
+            .maybeSingle()
+        )
 
-        isOrganizer = profile?.role === 'organizer' || user.user_metadata?.['role'] === 'organizer'
-        const campusId = (profile as { campus_id?: string | null })?.campus_id || user.user_metadata?.['campus_id']
+        isOrganizer = profile?.role === 'organizer' || currentUser.user_metadata?.['role'] === 'organizer'
+        const campusId = (profile as { campus_id?: string | null })?.campus_id || currentUser.user_metadata?.['campus_id']
         if (campusId) {
           currentCampus = campuses.find((c) => c.id === campusId) || null
         }

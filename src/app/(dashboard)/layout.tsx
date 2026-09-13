@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { APP_NAME } from '@/lib/constants'
 import { DashboardShell } from '@/components/dashboard/DashboardShell'
+import { measureDevPerf } from '@/lib/diagnostics/perf'
 import type { CampusVerificationStatus } from '@/types'
 
 export const metadata: Metadata = {
@@ -22,11 +23,13 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   }
 
   // Verify organizer role or scoped team membership
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, full_name, is_verified, campus_id, campus_verification_status')
-    .eq('id', user.id)
-    .maybeSingle()
+  const { data: profile } = await measureDevPerf('profile:role_lookup', () =>
+    supabase
+      .from('profiles')
+      .select('role, full_name, is_verified, campus_id, campus_verification_status')
+      .eq('id', user.id)
+      .maybeSingle()
+  )
 
   let isOrganizer = profile?.role === 'organizer'
   if (!isOrganizer && user.user_metadata?.['role'] === 'organizer') {
@@ -49,11 +52,13 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   let campusName: string | undefined = undefined
   let campusStatus = (profile?.campus_verification_status as CampusVerificationStatus) || 'unverified'
   if (profile?.campus_id) {
-    const { data: campus } = await supabase
-      .from('campuses')
-      .select('name, approved_domains')
-      .eq('id', profile.campus_id)
-      .maybeSingle()
+    const { data: campus } = await measureDevPerf('campus:lookup', () =>
+      supabase
+        .from('campuses')
+        .select('name, approved_domains')
+        .eq('id', profile.campus_id)
+        .maybeSingle()
+    )
     campusName = campus?.name
 
     // If unverified but user's email matches an approved domain for this campus, auto-verify!

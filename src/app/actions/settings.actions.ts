@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { updateUserCampus } from '@/app/actions/campus.actions'
 import { updateUserSocialPreferences } from '@/app/actions/friends.actions'
 import { updatePhotoPrivacyPreference } from '@/app/actions/gallery.actions'
+import { invalidateOrganizerCache } from '@/lib/cache/invalidation'
 import type {
   AttendanceVisibility,
   PublicFieldsVisibility,
@@ -103,6 +104,7 @@ export async function updateUserProfile(
     updated_fields: Object.keys(updateData).filter((k) => k !== 'updated_at'),
   })
 
+  invalidateOrganizerCache(user.id)
   revalidatePath('/settings')
   revalidatePath('/', 'layout')
 
@@ -688,6 +690,7 @@ export async function updateOrganizerWorkspaceSettings(
     fields: Object.keys(updateData).filter((k) => k !== 'updated_at'),
   })
 
+  invalidateOrganizerCache(user.id)
   revalidatePath('/settings')
   return { success: true }
 }
