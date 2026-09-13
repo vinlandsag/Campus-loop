@@ -198,7 +198,12 @@ export async function adminApproveOrganizer(
 
   const { error: updateError } = await supabase
     .from('profiles')
-    .update({ is_verified: true, is_suspended: false })
+    .update({
+      is_verified: true,
+      is_suspended: false,
+      campus_verification_status: 'verified',
+      campus_verified_at: new Date().toISOString(),
+    })
     .eq('id', organizerId)
 
   if (updateError) return { success: false, error: updateError.message }
@@ -636,6 +641,21 @@ export async function adminAddDomain(
     .eq('id', campusId)
 
   if (error) return { success: false, error: error.message }
+
+  // Auto-verify existing profiles matching the newly approved domain
+  try {
+    await supabase
+      .from('profiles')
+      .update({
+        campus_id: campusId,
+        campus_verification_status: 'verified',
+        campus_verified_at: new Date().toISOString(),
+      })
+      .ilike('email', `%@${cleanDomain}`)
+      .eq('campus_verification_status', 'unverified')
+  } catch (err) {
+    console.error('Error auto-verifying users for new domain:', err)
+  }
 
   await logAdminAction(supabase, {
     adminId: auth.user.id,

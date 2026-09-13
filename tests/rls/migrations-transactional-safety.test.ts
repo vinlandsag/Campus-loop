@@ -5,11 +5,11 @@ import path from 'node:path'
 describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Authorization', () => {
   const migrationsDir = path.resolve(process.cwd(), 'supabase/migrations')
 
-  test('all 28 chronological migrations exist on disk with valid naming convention', () => {
+  test('all 29 chronological migrations exist on disk with valid naming convention', () => {
     expect(fs.existsSync(migrationsDir)).toBe(true)
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
 
-    expect(files.length).toBe(28)
+    expect(files.length).toBe(29)
 
     // Expected sequence
     const expectedPrefixes = [
@@ -41,6 +41,7 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
       '20260912190000_phase16_account_center_settings',
       '20260913000000_phase17_admin_control_panel',
       '20260913010000_phase17_admin_profile_verification_trigger',
+      '20260913020000_phase17_campus_domain_verification_trigger',
     ]
 
     expectedPrefixes.forEach((prefix, idx) => {
@@ -237,5 +238,16 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
     expect(triggerMigration).toContain('prevent_profile_privilege_escalation')
     expect(triggerMigration).toContain('public.is_admin()')
     expect(triggerMigration).toContain('SET search_path = public')
+  })
+
+  test('phase 17 campus domain verification trigger auto-syncs on domain updates and signup', () => {
+    const domainMigration = fs.readFileSync(
+      path.join(migrationsDir, '20260913020000_phase17_campus_domain_verification_trigger.sql'),
+      'utf8'
+    )
+    expect(domainMigration).toContain('sync_campus_domain_verifications')
+    expect(domainMigration).toContain('trg_sync_campus_domain_verifications')
+    expect(domainMigration).toContain('handle_new_user')
+    expect(domainMigration).toContain('SET search_path = public')
   })
 })

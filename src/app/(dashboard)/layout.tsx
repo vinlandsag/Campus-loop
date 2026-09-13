@@ -47,13 +47,29 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
   }
 
   let campusName: string | undefined = undefined
+  let campusStatus = (profile?.campus_verification_status as CampusVerificationStatus) || 'unverified'
   if (profile?.campus_id) {
     const { data: campus } = await supabase
       .from('campuses')
-      .select('name')
+      .select('name, approved_domains')
       .eq('id', profile.campus_id)
       .maybeSingle()
     campusName = campus?.name
+
+    // If unverified but user's email matches an approved domain for this campus, auto-verify!
+    if (campusStatus === 'unverified' && campus?.approved_domains && user.email) {
+      const domain = user.email.split('@')[1]?.toLowerCase()
+      if (domain && campus.approved_domains.some((d: string) => d.toLowerCase() === domain)) {
+        await supabase
+          .from('profiles')
+          .update({
+            campus_verification_status: 'verified',
+            campus_verified_at: new Date().toISOString(),
+          })
+          .eq('id', user.id)
+        campusStatus = 'verified'
+      }
+    }
   }
 
   const fullName = profile?.full_name || (user.user_metadata?.['full_name'] as string) || ''
@@ -75,7 +91,7 @@ export default async function DashboardLayout({ children }: DashboardLayoutProps
         isOrganizer,
         isVerified: Boolean(profile?.is_verified),
         campusName,
-        campusStatus: (profile?.campus_verification_status as CampusVerificationStatus) || 'unverified',
+        campusStatus,
       }}
     >
       {children}

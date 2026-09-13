@@ -14,14 +14,34 @@ export default async function NewEventPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, is_verified, campus_verification_status')
+    .select('role, is_verified, campus_id, campus_verification_status')
     .eq('id', user.id)
     .maybeSingle()
+
+  let isCampusVerified = profile?.campus_verification_status === 'verified'
+  if (!isCampusVerified && profile?.campus_id && user.email) {
+    const { data: campus } = await supabase
+      .from('campuses')
+      .select('approved_domains')
+      .eq('id', profile.campus_id)
+      .maybeSingle()
+    const domain = user.email.split('@')[1]?.toLowerCase()
+    if (domain && campus?.approved_domains?.map((d: string) => d.toLowerCase()).includes(domain)) {
+      await supabase
+        .from('profiles')
+        .update({
+          campus_verification_status: 'verified',
+          campus_verified_at: new Date().toISOString(),
+        })
+        .eq('id', user.id)
+      isCampusVerified = true
+    }
+  }
 
   const isVerifiedOrganizer =
     profile?.role === 'organizer' &&
     Boolean(profile?.is_verified) &&
-    profile?.campus_verification_status === 'verified'
+    isCampusVerified
 
   return (
     <div>
