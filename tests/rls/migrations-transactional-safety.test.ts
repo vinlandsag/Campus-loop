@@ -5,11 +5,11 @@ import path from 'node:path'
 describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Authorization', () => {
   const migrationsDir = path.resolve(process.cwd(), 'supabase/migrations')
 
-  test('all 27 chronological migrations exist on disk with valid naming convention', () => {
+  test('all 28 chronological migrations exist on disk with valid naming convention', () => {
     expect(fs.existsSync(migrationsDir)).toBe(true)
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
 
-    expect(files.length).toBe(27)
+    expect(files.length).toBe(28)
 
     // Expected sequence
     const expectedPrefixes = [
@@ -40,6 +40,7 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
       '20260912180000_phase15_ecosystem_venues_networking_translations_integrations',
       '20260912190000_phase16_account_center_settings',
       '20260913000000_phase17_admin_control_panel',
+      '20260913010000_phase17_admin_profile_verification_trigger',
     ]
 
     expectedPrefixes.forEach((prefix, idx) => {
@@ -226,5 +227,15 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
     expect(phase17).toContain('organizer_suspended')
     expect(phase17).toContain('organizer_revoked')
     expect(phase17).toContain('SET search_path = public')
+  })
+
+  test('phase 17 profile trigger allows system administrators to update verification and roles', () => {
+    const triggerMigration = fs.readFileSync(
+      path.join(migrationsDir, '20260913010000_phase17_admin_profile_verification_trigger.sql'),
+      'utf8'
+    )
+    expect(triggerMigration).toContain('prevent_profile_privilege_escalation')
+    expect(triggerMigration).toContain('public.is_admin()')
+    expect(triggerMigration).toContain('SET search_path = public')
   })
 })
