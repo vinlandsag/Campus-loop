@@ -1,8 +1,8 @@
 {
-  "name": "college-loop",
+  "name": "campus-loop",
   "version": "0.1.0",
   "private": true,
-  "description": "College Loop is a campus event discovery and registration platform for students, organizers, and communities.",
+  "description": "campus Loop is a campus event discovery and registration platform for students, organizers, and communities.",
   "scripts": {
     "dev": "next dev",
     "clean": "node scripts/clean-locks.mjs",
