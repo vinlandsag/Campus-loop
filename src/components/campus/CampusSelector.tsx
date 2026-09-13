@@ -89,11 +89,6 @@ export function CampusSelector({
                   <span className={cn('font-medium', isSelected && 'text-[--accent-600]')}>
                     {campus.name}
                   </span>
-                  {campus.approved_domains && campus.approved_domains.length > 0 && (
-                    <span className="text-[10px] text-[--text-muted]">
-                      @{campus.approved_domains[0]}
-                    </span>
-                  )}
                 </div>
                 {isSelected && <Check className="h-3.5 w-3.5 text-[--accent-600]" />}
               </DropdownMenuItem>

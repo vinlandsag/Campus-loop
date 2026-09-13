@@ -54,10 +54,15 @@ export function Navbar({
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  const isAuthPage =
-    pathname === '/login' ||
-    pathname === '/signup' ||
-    pathname === '/admin/login'
+  const isAuthPage = Boolean(
+    pathname && (
+      pathname === '/login' ||
+      pathname === '/signup' ||
+      pathname.startsWith('/login') ||
+      pathname.startsWith('/signup') ||
+      pathname.startsWith('/admin')
+    )
+  )
 
   const visibleLinks = NAV_LINKS.filter((link) => {
     if ('organizerOnly' in link && link.organizerOnly && !isOrganizer) return false
