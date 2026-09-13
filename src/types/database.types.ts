@@ -618,6 +618,9 @@ export type Database = {
           campus_exception_reason: string | null
           campus_verified_at: string | null
           pending_campus_id: string | null
+          is_suspended: boolean
+          suspended_at: string | null
+          suspension_reason: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -643,6 +646,9 @@ export type Database = {
           campus_exception_reason?: string | null
           campus_verified_at?: string | null
           pending_campus_id?: string | null
+          is_suspended?: boolean
+          suspended_at?: string | null
+          suspension_reason?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -668,6 +674,9 @@ export type Database = {
           campus_exception_reason?: string | null
           campus_verified_at?: string | null
           pending_campus_id?: string | null
+          is_suspended?: boolean
+          suspended_at?: string | null
+          suspension_reason?: string | null
         }
         Relationships: []
       }
@@ -848,6 +857,39 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_audit_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          reason: string | null
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: []
+      }
       system_admins: {
         Row: {
           granted_at: string
@@ -994,6 +1036,14 @@ export type Database = {
       }
     }
     Functions: {
+      admin_delete_event: {
+        Args: {
+          p_event_id: string
+          p_reason: string
+          p_admin_notes?: string | null
+        }
+        Returns: Json
+      }
       get_organizer_profile: {
         Args: {
           p_organizer_id: string

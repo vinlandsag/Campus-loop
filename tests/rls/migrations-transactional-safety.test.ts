@@ -5,11 +5,11 @@ import path from 'node:path'
 describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Authorization', () => {
   const migrationsDir = path.resolve(process.cwd(), 'supabase/migrations')
 
-  test('all 23 chronological migrations exist on disk with valid naming convention', () => {
+  test('all 27 chronological migrations exist on disk with valid naming convention', () => {
     expect(fs.existsSync(migrationsDir)).toBe(true)
     const files = fs.readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
 
-    expect(files.length).toBe(26)
+    expect(files.length).toBe(27)
 
     // Expected sequence
     const expectedPrefixes = [
@@ -39,6 +39,7 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
       '20260912170000_phase14_certificates_volunteers_live_galleries',
       '20260912180000_phase15_ecosystem_venues_networking_translations_integrations',
       '20260912190000_phase16_account_center_settings',
+      '20260913000000_phase17_admin_control_panel',
     ]
 
     expectedPrefixes.forEach((prefix, idx) => {
@@ -208,5 +209,22 @@ describe('Supabase SQL / RLS Tests: Migration Transactional Safety & Database Au
     expect(phase15).toContain('event_webhook_integrations')
     expect(phase15).toContain('campus_api_keys')
     expect(phase15).toContain('target_type IN (\'event\', \'organizer\', \'feedback\', \'photo\', \'networking_profile\')')
+  })
+
+  test('phase 17 schema directives: admin audit log, organizer suspension, admin event deletion RPC, notifications', () => {
+    const phase17 = fs.readFileSync(
+      path.join(migrationsDir, '20260913000000_phase17_admin_control_panel.sql'),
+      'utf8'
+    )
+    expect(phase17).toContain('admin_audit_log')
+    expect(phase17).toContain('is_suspended BOOLEAN NOT NULL DEFAULT false')
+    expect(phase17).toContain('check_organizer_not_suspended')
+    expect(phase17).toContain('trg_check_organizer_not_suspended')
+    expect(phase17).toContain('admin_delete_event')
+    expect(phase17).toContain('campusloop.admin_delete_bypass')
+    expect(phase17).toContain('admin_event_removed')
+    expect(phase17).toContain('organizer_suspended')
+    expect(phase17).toContain('organizer_revoked')
+    expect(phase17).toContain('SET search_path = public')
   })
 })

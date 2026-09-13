@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
-import { LogOut, Settings, LayoutDashboard, Calendar, Heart, Compass, Users } from 'lucide-react'
+import { LogOut, Settings, LayoutDashboard, Calendar, Heart, Compass, Users, Shield } from 'lucide-react'
 
 import {
   DropdownMenu,
@@ -20,9 +20,10 @@ import { clearAllOfflineRosters } from '@/lib/offline/roster-storage'
 interface UserMenuProps {
   user: User
   isOrganizer?: boolean
+  isAdmin?: boolean
 }
 
-export function UserMenu({ user, isOrganizer = false }: UserMenuProps) {
+export function UserMenu({ user, isOrganizer = false, isAdmin = false }: UserMenuProps) {
   // Try to get initials from metadata if available
   const fullName = user.user_metadata?.full_name || ''
   const initials = fullName
@@ -59,6 +60,14 @@ export function UserMenu({ user, isOrganizer = false }: UserMenuProps) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
+          {isAdmin && (
+            <DropdownMenuItem>
+              <Link href="/admin" className="flex w-full cursor-pointer items-center font-semibold text-amber-600 dark:text-amber-400">
+                <Shield className="mr-2 h-4 w-4" />
+                <span>Admin Panel</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
           {isOrganizer && (
             <DropdownMenuItem>
               <Link href="/dashboard" className="flex w-full cursor-pointer items-center">

@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { createBrowserClient } from '@supabase/ssr'
+import { z } from 'zod'
 
-import { loginSchema, type LoginFormData } from '@/lib/validations/auth.schema'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '@/components/auth/PasswordInput'
@@ -21,53 +21,47 @@ import {
 } from '@/components/ui/form'
 import type { Database } from '@/types/database.types'
 
-export function LoginForm() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [isLoading, setIsLoading] = useState(false)
-  const rawNext = searchParams.get('next') || searchParams.get('callbackUrl')
-  const next = rawNext && rawNext.startsWith('/') && !rawNext.startsWith('//') ? rawNext : '/dashboard'
+const adminLoginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+})
 
-  const form = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+type AdminLoginFormData = z.infer<typeof adminLoginSchema>
+
+export function AdminLoginForm() {
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+
+  const form = useForm<AdminLoginFormData>({
+    resolver: zodResolver(adminLoginSchema),
+    defaultValues: { email: '', password: '' },
   })
 
-  async function onSubmit(data: LoginFormData) {
+  async function onSubmit(data: AdminLoginFormData) {
     setIsLoading(true)
     const supabase = createBrowserClient<Database>(
       process.env['NEXT_PUBLIC_SUPABASE_URL']!,
       process.env['NEXT_PUBLIC_SUPABASE_ANON_KEY']!
     )
 
-    const { data: authData, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     })
 
-    setIsLoading(false)
-
     if (error) {
+      setIsLoading(false)
       if (error.message.includes('Invalid login credentials')) {
-        form.setError('email', { message: 'Invalid email or password' })
-        form.setError('password', { message: 'Invalid email or password' })
+        form.setError('email', { message: 'Invalid credentials' })
+        form.setError('password', { message: 'Invalid credentials' })
       } else {
-        toast.error('Login failed', {
-          description: error.message,
-        })
+        toast.error('Login failed', { description: error.message })
       }
       return
     }
 
-    const appMeta = authData.user?.app_metadata as Record<string, unknown> | undefined
-    const isAdmin = appMeta?.['role'] === 'admin' || appMeta?.['is_admin'] === true
-    const destination = !rawNext && isAdmin ? '/admin' : next
-
-    toast.success('Logged in successfully')
-    router.push(destination)
+    toast.success('Admin authenticated successfully')
+    router.push('/admin')
     router.refresh()
   }
 
@@ -79,12 +73,12 @@ export function LoginForm() {
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Email address</FormLabel>
+              <FormLabel>Admin Email</FormLabel>
               <FormControl>
                 <Input
                   type="email"
                   autoComplete="email"
-                  placeholder="you@university.edu"
+                  placeholder="admin@campusloop.edu"
                   {...field}
                 />
               </FormControl>
@@ -112,7 +106,7 @@ export function LoginForm() {
         />
 
         <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading ? 'Signing in...' : 'Sign in'}
+          {isLoading ? 'Authenticating...' : 'Sign in to Admin'}
         </Button>
       </form>
     </Form>

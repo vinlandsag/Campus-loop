@@ -4,6 +4,7 @@ import { Footer } from '@/components/layout/Footer'
 import { CampusOnboardingModal } from '@/components/campus/CampusOnboardingModal'
 import { APP_NAME } from '@/lib/constants'
 import { createClient } from '@/lib/supabase/server'
+import { isSystemAdmin } from '@/lib/auth/admin'
 import type { Campus } from '@/types'
 
 export const metadata: Metadata = {
@@ -24,6 +25,7 @@ interface AppLayoutProps {
 export default async function AppLayout({ children }: AppLayoutProps) {
   let user = null
   let isOrganizer = false
+  let isAdmin = false
   let currentCampus: Campus | null = null
   let campuses: Campus[] = []
 
@@ -42,6 +44,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
 
     if (user) {
       try {
+        isAdmin = await isSystemAdmin(supabase, user)
         const { data: profile } = await supabase
           .from('profiles')
           .select('role, full_name, campus_id')
@@ -68,6 +71,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
       <Navbar
         user={user}
         isOrganizer={isOrganizer}
+        isAdmin={isAdmin}
         currentCampus={currentCampus}
         campuses={campuses}
       />

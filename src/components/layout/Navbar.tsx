@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Menu, X } from 'lucide-react'
+import { Menu, X, Shield } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
 import { MobileNav } from './MobileNav'
@@ -25,6 +25,7 @@ const NAV_LINKS = [
 interface NavbarProps {
   user: User | null
   isOrganizer: boolean
+  isAdmin?: boolean
   campuses?: Campus[]
   initialCampus?: string
   currentCampus?: Campus | null
@@ -33,6 +34,7 @@ interface NavbarProps {
 export function Navbar({
   user,
   isOrganizer = false,
+  isAdmin = false,
   campuses = [],
   currentCampus,
 }: NavbarProps) {
@@ -117,8 +119,17 @@ export function Navbar({
             )}
             {user ? (
               <>
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-300"
+                  >
+                    <Shield className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    <span>Admin</span>
+                  </Link>
+                )}
                 <NotificationBell />
-                <UserMenu user={user} isOrganizer={isOrganizer} />
+                <UserMenu user={user} isOrganizer={isOrganizer} isAdmin={isAdmin} />
               </>
             ) : (
               <>

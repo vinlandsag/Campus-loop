@@ -2,6 +2,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { CampusOnboardingModal } from '@/components/campus/CampusOnboardingModal'
 import { createClient } from '@/lib/supabase/server'
+import { isSystemAdmin } from '@/lib/auth/admin'
 import type { Campus } from '@/types'
 
 interface PublicLayoutProps {
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic'
 export default async function PublicLayout({ children }: PublicLayoutProps) {
   let user = null
   let isOrganizer = false
+  let isAdmin = false
   let currentCampus: Campus | null = null
   let campuses: Campus[] = []
 
@@ -36,6 +38,7 @@ export default async function PublicLayout({ children }: PublicLayoutProps) {
 
     if (user) {
       try {
+        isAdmin = await isSystemAdmin(supabase, user)
         const { data: profile } = await supabase
           .from('profiles')
           .select('role, full_name, campus_id')
@@ -62,6 +65,7 @@ export default async function PublicLayout({ children }: PublicLayoutProps) {
       <Navbar
         user={user}
         isOrganizer={isOrganizer}
+        isAdmin={isAdmin}
         currentCampus={currentCampus}
         campuses={campuses}
       />

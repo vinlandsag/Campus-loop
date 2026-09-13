@@ -943,4 +943,109 @@ export interface OrganizerWorkspaceSettings {
   updated_at: string
 }
 
+// ─── Phase 17: Admin Control Panel ──────────────────────────────────────────
 
+export type AdminAuditAction =
+  | 'organizer_approved'
+  | 'organizer_rejected'
+  | 'organizer_suspended'
+  | 'organizer_unsuspended'
+  | 'organizer_revoked'
+  | 'event_deleted'
+  | 'campus_created'
+  | 'campus_updated'
+  | 'domain_added'
+  | 'domain_removed'
+  | 'campus_deactivated'
+  | 'campus_exception_approved'
+  | 'report_dismissed'
+  | 'report_investigated'
+  | 'report_action_taken'
+  | 'admin_login'
+  | 'admin_access_denied'
+
+export interface AdminAuditLogEntry {
+  id: string
+  admin_id: string
+  action: AdminAuditAction | string
+  target_type: string
+  target_id: string
+  reason: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+}
+
+export type OrganizerApprovalStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'revoked'
+
+export interface AdminOrganizer {
+  id: string
+  email: string
+  full_name: string
+  role: string
+  is_verified: boolean
+  is_suspended: boolean
+  campus_id: string | null
+  campus_name: string | null
+  campus_verification_status: string | null
+  college: string | null
+  department: string | null
+  bio: string | null
+  website_url: string | null
+  instagram_handle: string | null
+  created_at: string
+  approval_status: OrganizerApprovalStatus
+}
+
+export interface AdminDashboardOverview {
+  pendingOrganizers: number
+  pendingReports: number
+  flaggedEvents: number
+  recentAuditCount: number
+  totalCampuses: number
+  activeCampuses: number
+  totalEvents: number
+}
+
+export interface AdminEvent {
+  id: string
+  title: string
+  slug: string
+  status: string
+  category: string
+  organizer_id: string
+  organizer_name: string
+  organizer_verified: boolean
+  campus_id: string | null
+  campus_name: string | null
+  registration_count: number
+  capacity: number | null
+  event_date: string | null
+  start_time: string | null
+  end_time: string | null
+  created_at: string
+}
+
+export interface AdminCampusWithCounts {
+  id: string
+  name: string
+  slug: string
+  approved_domains: string[]
+  is_active: boolean
+  verified_user_count: number
+  total_user_count: number
+  event_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface AdminCampusException {
+  user_id: string
+  full_name: string
+  email: string
+  current_campus_name: string | null
+  pending_campus_name: string | null
+  pending_campus_id: string | null
+  exception_reason: string | null
+  campus_verification_status: string
+  created_at: string
+}

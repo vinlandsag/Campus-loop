@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isSystemAdmin } from '@/lib/auth/admin'
+import { isSystemAdmin, logAdminAction } from '@/lib/auth/admin'
 import { checkDurableRateLimit } from '@/lib/rate-limit/durable-limiter'
 import type {
   ModerationReport,
@@ -334,6 +334,13 @@ export async function approveOrganizer(organizerId: string): Promise<ActionResul
     console.error('Failed to send organizer approval notification:', notifErr)
   }
 
+  await logAdminAction(supabase, {
+    adminId: user.id,
+    action: 'organizer_approved',
+    targetType: 'user',
+    targetId: organizerId,
+  })
+
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/moderation')
   revalidatePath('/settings')
@@ -390,6 +397,14 @@ export async function rejectOrganizer(
   } catch (notifErr) {
     console.error('Failed to send organizer rejection notification:', notifErr)
   }
+
+  await logAdminAction(supabase, {
+    adminId: user.id,
+    action: 'organizer_rejected',
+    targetType: 'user',
+    targetId: organizerId,
+    reason: reason || null,
+  })
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/moderation')
